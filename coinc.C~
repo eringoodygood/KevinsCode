@@ -1,0 +1,92 @@
+#include <TH2.h>
+#include <TStyle.h>
+#include <iostream>
+#include <TROOT.h>
+#include <TChain.h>
+#include <TFile.h>
+#include <TSelector.h>
+
+//========================================//
+//Global Variables goodness
+const int NFILES = 8;
+const int RefChan = 4; // Silicon back
+const int FrontChan = 0;
+
+
+
+//end of Global Variable fun
+//========================================//
+
+//Make a file and a tree
+TFile *f[NFILES];
+TTree *T[NFILES];
+
+// Declaration of leaf types
+Int_t           eventID[NFILES];
+Int_t           trigID[NFILES];
+Double_t        energy[NFILES];
+Double_t        t1[NFILES];
+
+// List of branches
+TBranch        *b_eventID[NFILES];   //!
+TBranch        *b_trigID[NFILES];   //!
+TBranch        *b_energy[NFILES];   //!
+TBranch        *b_t1[NFILES];   //!   
+
+//We want some histograms
+TH2F *hLvE = new TH2F("hLvE","\\text{Energy vs. Position};\\text{Position  } \\left( Q_{L}/Q_{B} \\approx \\frac{x}{L}\\right);Energy Deposited in Silicon",500,0,1,500,0,1000);
+
+int coinc()
+{
+  // Channel Map for Silicon only no gas
+  f[0] = new TFile("wave0.root"); // two front middle
+  f[1] = new TFile("wave1.root"); // ""
+  f[2] = new TFile("wave2.root"); // ""
+  f[3] = new TFile("wave3.root"); // ""
+  f[4] = new TFile("wave4.root"); // back 1
+  f[5] = new TFile("wave5.root"); // back 2
+  f[6] = new TFile("wave6.root"); // back 3
+  f[7] = new TFile("wave7.root"); // back 4
+
+  
+  int entry[NFILES];
+  int numEntries[NFILES];
+
+  for(int i =0; i<NFILES; i++)
+    {
+      T[i] = (TTree*)f[i]->Get("T"); //magic
+      T[i]->SetBranchAddress("eventID", &eventID[i], &b_eventID[i]);
+      T[i]->SetBranchAddress("trigID", &trigID[i], &b_trigID[i]);
+      T[i]->SetBranchAddress("energy", &energy[i], &b_energy[i]);
+      T[i]->SetBranchAddress("t1", &t1[i], &b_t1[i]);
+      numEntries[i]=T[i]->GetEntries();
+    }
+
+  for(int i = 0; i< NFILES; i++)
+    {
+      entry[i] = 0;
+    }
+  
+  for(int iRef = 0; iRef < numEntries[RefChan]; iRef++ )
+    {
+      T[RefChan]->GetEntry(iRef); // get the data
+      cout << eventID[RefChan] << " " << energy[RefChan] << endl;
+      for(int iOther = entry[FrontChan]; iOther < numEntries[FrontChan]; iOther++)
+	{
+	  T[FrontChan]->GetEntry(iOther);
+	  if(eventID[FrontChan] == eventID[RefChan])
+	    {
+	      cout << "YAY!  " << eventID[FrontChan] << " " << energy[FrontChan] << " " << energy[RefChan] << endl;
+	      hLvE->Fill(energy[FrontChan]/energy[RefChan],energy[RefChan]);
+	    }
+	  if(eventID[FrontChan] > eventID[RefChan])
+	    {
+	      entry[FrontChan] = iOther;
+	      break;
+	    }
+	}
+    }
+
+  hLvE->Draw();
+  return 0;
+}
